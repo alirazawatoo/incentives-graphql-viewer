@@ -1,6 +1,8 @@
 import json
 import os
+import runpy
 import threading
+from pathlib import Path
 from unittest.mock import patch
 
 import requests
@@ -297,3 +299,34 @@ class SettingsParsingTests(SimpleTestCase):
             with self.subTest(raw=raw), patch.dict(os.environ, {"GRAPHQL_REQUEST_TIMEOUT": raw}):
                 with self.assertRaises(ImproperlyConfigured):
                     _env_number("GRAPHQL_REQUEST_TIMEOUT", 10, float, 0.5)
+
+
+SETTINGS_FILE = Path(__file__).resolve().parent.parent / "graphql" / "settings.py"
+
+
+class SettingsEnvironmentTests(SimpleTestCase):
+    def load(self, **env):
+        clean = {k: v for k, v in os.environ.items() if not k.startswith(("DJANGO_", "GRAPHQL_"))}
+        with patch.dict(os.environ, {**clean, **env}, clear=True):
+            return runpy.run_path(str(SETTINGS_FILE))
+
+    def test_missing_secret_key_outside_debug_fails(self):
+        with self.assertRaises(ImproperlyConfigured):
+            self.load()
+
+    def test_debug_generates_throwaway_key(self):
+        loaded = self.load(DJANGO_DEBUG="1")
+        self.assertTrue(loaded["DEBUG"])
+        self.assertGreaterEqual(len(loaded["SECRET_KEY"]), 50)
+
+    def test_wildcard_hosts_need_debug(self):
+        with self.assertRaises(ImproperlyConfigured):
+            self.load(DJANGO_SECRET_KEY="x" * 50, DJANGO_ALLOWED_HOSTS="*")
+
+    def test_production_mode_secures_cookies_and_parses_hosts(self):
+        loaded = self.load(DJANGO_SECRET_KEY="x" * 50, DJANGO_ALLOWED_HOSTS=" example.org, ,www.example.org ")
+        self.assertFalse(loaded["DEBUG"])
+        self.assertEqual(loaded["ALLOWED_HOSTS"], ["example.org", "www.example.org"])
+        self.assertTrue(loaded["SESSION_COOKIE_SECURE"])
+        self.assertTrue(loaded["CSRF_COOKIE_SECURE"])
+        self.assertNotIn("SECURE_PROXY_SSL_HEADER", loaded)
