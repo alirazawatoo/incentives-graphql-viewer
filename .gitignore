@@ -1,0 +1,49 @@
+
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+db.sqlite3
+
+# Environments
+.env
+venv/
+ENV/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+.vercel
+
+staticfiles/
+
+.venv/
+.env.*
+!.env.example
+
+# Local environments, build output and caches
+project_venv/
+node_modules/
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
+coverage/
+.coverage
+htmlcov/
+logs/
+tmp/
+*.sqlite3
+*.db
+.github/
