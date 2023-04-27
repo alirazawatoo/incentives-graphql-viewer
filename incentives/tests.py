@@ -293,7 +293,7 @@ class HomeViewTests(SimpleTestCase):
 
 class SettingsParsingTests(SimpleTestCase):
     def test_bad_numeric_environment_values_fail_fast(self):
-        from graphql.settings import _env_number
+        from incentive_site.settings import _env_number
 
         for raw in ["abc", "-5", "nan"]:
             with self.subTest(raw=raw), patch.dict(os.environ, {"GRAPHQL_REQUEST_TIMEOUT": raw}):
@@ -301,7 +301,7 @@ class SettingsParsingTests(SimpleTestCase):
                     _env_number("GRAPHQL_REQUEST_TIMEOUT", 10, float, 0.5)
 
 
-SETTINGS_FILE = Path(__file__).resolve().parent.parent / "graphql" / "settings.py"
+SETTINGS_FILE = Path(__file__).resolve().parent.parent / "incentive_site" / "settings.py"
 
 
 class SettingsEnvironmentTests(SimpleTestCase):

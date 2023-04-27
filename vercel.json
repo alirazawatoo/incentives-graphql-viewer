@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "graphql/wsgi.py",
+      "src": "incentive_site/wsgi.py",
       "use": "@vercel/python",
       "config": {
         "maxLambdaSize": "15mb"
@@ -12,7 +12,7 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "graphql/wsgi.py"
+      "dest": "incentive_site/wsgi.py"
     }
   ]
 }

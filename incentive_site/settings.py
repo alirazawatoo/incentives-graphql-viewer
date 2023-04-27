@@ -89,7 +89,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "graphql.urls"
+ROOT_URLCONF = "incentive_site.urls"
 
 TEMPLATES = [
     {
@@ -107,7 +107,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "graphql.wsgi.application"
+WSGI_APPLICATION = "incentive_site.wsgi.application"
 
 # SQLite only backs Django's admin/auth/session tables; the charts never
 # touch the database.

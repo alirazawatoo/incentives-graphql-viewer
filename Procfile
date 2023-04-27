@@ -1,1 +1,1 @@
-web: gunicorn graphql.wsgi --log-file -
+web: gunicorn incentive_site.wsgi --log-file -
