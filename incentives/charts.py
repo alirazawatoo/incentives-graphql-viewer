@@ -52,12 +52,18 @@ def summarise(points: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def plotted_rows(ranked: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """The UIDs that get a line, each with the colour used for it."""
+    return [{**row, "colour": colour} for row, colour in zip(ranked[:MAX_PLOTTED_UIDS], SERIES_COLOURS, strict=False)]
+
+
 def render_chart_png(points: list[dict[str, Any]], subnet_uid: int) -> bytes:
     summary = summarise(points)
     figure = Figure(figsize=(12, 6), layout="constrained", facecolor="white")
     axes = figure.subplots()
-    for colour, row in zip(SERIES_COLOURS, summary["ranked"][:MAX_PLOTTED_UIDS], strict=False):
+    for row in plotted_rows(summary["ranked"]):
         series = summary["grouped"][row["uid"]]
+        colour = row["colour"]
         axes.plot(
             [p["timestamp"] for p in series],
             [p["value"] for p in series],

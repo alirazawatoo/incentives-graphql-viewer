@@ -261,6 +261,25 @@ class PlotViewTests(SimpleTestCase):
         self.assertNotContains(response, "data:image/png")
 
     @responses.activate
+    def test_large_subnet_table_lists_only_plotted_uids(self):
+        responses.post(API_URL, json=payload(*range(MAX_PLOTTED_UIDS + 8)))
+
+        response = self.client.get(reverse("plot_view"))
+
+        self.assertEqual(len(response.context["plotted"]), MAX_PLOTTED_UIDS)
+        self.assertContains(response, f"Showing the {MAX_PLOTTED_UIDS} UIDs with the highest latest value out of 20")
+        self.assertContains(response, "<td>1</td><td>", html=False)
+        self.assertContains(response, "UID 19")
+        self.assertNotContains(response, "UID 0<")
+
+    @responses.activate
+    def test_invalid_input_marks_the_field(self):
+        response = self.client.get(reverse("plot_view"), {"subnet": "abc"})
+
+        self.assertContains(response, 'aria-invalid="true"', status_code=400)
+        self.assertContains(response, "Enter a whole number", status_code=400)
+
+    @responses.activate
     def test_successful_chart_is_cached(self):
         responses.post(API_URL, json=payload(1))
 

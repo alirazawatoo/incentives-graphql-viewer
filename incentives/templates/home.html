@@ -1,15 +1,32 @@
 {% extends "base.html" %}
+{% block extra_style %}
+    .intro { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+    .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; }
+    .steps li { counter-increment: step; display: grid; grid-template-columns: 2.4rem 1fr; gap: 4px 12px; padding: 14px 0; border-top: 1px solid var(--rule); }
+    .steps li:first-child { border-top: 0; padding-top: 0; }
+    .steps li::before { content: counter(step, decimal-leading-zero); font: 600 .9rem var(--mono); color: var(--teal); padding-top: 2px; }
+    .steps strong { display: block; }
+    .steps span { grid-column: 2; color: var(--muted); font-size: .95rem; }
+    @media (max-width: 800px) { .intro { grid-template-columns: 1fr; gap: 28px; } }
+{% endblock %}
 {% block content %}
-<p class="eyebrow">GraphQL → Python → Chart</p>
-<h1>Incentives, over time.</h1>
-<p>A small data-viewing tool that requests subnet incentives from a configured GraphQL provider and renders a server-generated chart.</p>
-<form method="get" action="{% url 'plot_view' %}" novalidate>
-  <label for="{{ form.subnet.id_for_label }}">{{ form.subnet.label }}</label>
-  {{ form.subnet }}
-  <button class="button" type="submit">Fetch and view chart</button>
-</form>
-<div class="panel">
-  <h2>Before you open the chart</h2>
-  <p>Opening the chart makes a provider request unless a recent copy is cached. Values and timestamps reflect the provider response; timezone and completeness are not independently verified. This tool does not calculate returns or make forecasts.</p>
+<div class="intro">
+  <section aria-labelledby="page-title">
+    <p class="kicker">Subnet incentive history</p>
+    <h1 id="page-title">See how incentive moves across a subnet's UIDs.</h1>
+    <p class="lede">Pick a subnet and this site asks the configured GraphQL provider for its incentive history, keeps the points that parse cleanly and draws one line per UID.</p>
+    <div class="sheet">
+      {% include "_subnet_form.html" with button_label="Plot this subnet" %}
+    </div>
+  </section>
+  <section class="sheet" aria-labelledby="how-title">
+    <h2 id="how-title">What happens when you plot</h2>
+    <ol class="steps">
+      <li><strong>One GraphQL request</strong><span>A <code>subnets(netUid)</code> query for every UID's incentive series, with a {{ timeout|floatformat:"-1" }}s timeout.</span></li>
+      <li><strong>Points are checked</strong><span>Missing, negative, non-numeric or unparseable entries are dropped instead of breaking the chart.</span></li>
+      <li><strong>A chart is drawn</strong><span>The {{ max_plotted }} UIDs with the highest latest value get a line; the rest are counted.</span></li>
+      <li><strong>The result is reused</strong><span>Each subnet's chart is cached for {{ cache_seconds }} seconds. Failed requests are never cached.</span></li>
+    </ol>
+  </section>
 </div>
 {% endblock %}

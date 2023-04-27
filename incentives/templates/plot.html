@@ -1,28 +1,77 @@
 {% extends "base.html" %}
-{% block title %}{% if subnet_uid is not None %}Subnet {{ subnet_uid }} · {% endif %}Incentive explorer{% endblock %}
+{% block title %}{% if subnet_uid is not None %}Subnet {{ subnet_uid }} · {% endif %}Incentive ledger{% endblock %}
+{% block extra_style %}
+    .page-head { display: flex; flex-wrap: wrap; gap: 16px 32px; justify-content: space-between; align-items: end; margin-bottom: 24px; }
+    .page-head h1 { margin-bottom: 0; }
+    .crumb { font-size: .9rem; }
+    .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 20px; border: 1px solid var(--rule); border-radius: 4px; background: var(--sheet); }
+    .stats div { padding: 14px 18px; border-left: 1px solid var(--rule); }
+    .stats div:first-child { border-left: 0; }
+    .stats dt { font: 600 .72rem var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+    .stats dd { margin: 2px 0 0; font: 600 1.15rem var(--mono); overflow-wrap: anywhere; }
+    .chart { margin: 0; padding: 12px; overflow-x: auto; }
+    .chart img { display: block; width: 100%; min-width: 640px; height: auto; }
+    .scroll-hint { display: none; }
+    .state { border-left: 6px solid var(--teal); }
+    .state.error { border-left-color: var(--copper); background: var(--alert-bg); }
+    .state p:last-child { margin-bottom: 0; }
+    table { border-collapse: collapse; width: 100%; font-size: .95rem; }
+    caption { text-align: left; font: 700 1.1rem var(--display); padding-bottom: 10px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--rule); }
+    th { font: 600 .75rem var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+    td.num, th.num { text-align: right; font-family: var(--mono); }
+    .swatch { display: inline-block; width: .8em; height: .8em; border-radius: 2px; margin-right: 8px; vertical-align: -1px; }
+    .ranking { margin-top: 28px; overflow-x: auto; }
+    @media (max-width: 700px) {
+      .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .stats div:nth-child(3) { border-left: 0; }
+      .stats div:nth-child(n+3) { border-top: 1px solid var(--rule); }
+      .scroll-hint { display: block; margin: 0 0 6px; }
+    }
+{% endblock %}
 {% block content %}
-<a href="{% url 'home' %}">← Overview</a>
-<p class="eyebrow">Provider series</p>
-<h1>{% if subnet_uid is not None %}Subnet {{ subnet_uid }}{% else %}Choose a subnet{% endif %}</h1>
-<form method="get" action="{% url 'plot_view' %}" novalidate>
-  <label for="{{ form.subnet.id_for_label }}">{{ form.subnet.label }}</label>
-  {{ form.subnet }}
-  <button class="button" type="submit">Plot</button>
-  {% for error in form.subnet.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
-</form>
+<p class="crumb"><a href="{% url 'home' %}">← Overview</a></p>
+<div class="page-head">
+  <div>
+    <p class="kicker">{% if state == "chart" %}Incentive by UID{% elif state == "invalid" %}Check the subnet number{% else %}Provider response{% endif %}</p>
+    <h1>{% if subnet_uid is not None %}Subnet {{ subnet_uid }}{% else %}Choose a subnet{% endif %}</h1>
+  </div>
+  {% include "_subnet_form.html" with button_label="Plot" %}
+</div>
+
 {% if state == "error" %}
-<div class="panel" role="alert">
-  <h2>Unable to fetch incentives data</h2>
-  <p>{{ error_message }} Nothing was cached, so <a href="{{ request.get_full_path }}">trying again</a> makes a new request.</p>
-</div>
+<section class="sheet state error" role="alert" aria-labelledby="state-title">
+  <h2 id="state-title">Unable to fetch incentives data</h2>
+  <p>{{ error_message }} Nothing was cached, so trying again makes a fresh request.</p>
+  <p><a class="button-link" href="{{ request.get_full_path }}">Try again</a></p>
+</section>
 {% elif state == "empty" %}
-<div class="panel">
-  <h2>No incentive points for subnet {{ subnet_uid }}</h2>
-  <p>The provider answered, but the response held no usable points. The subnet may not exist, or every point was missing a value or timestamp.</p>
-</div>
+<section class="sheet state" aria-labelledby="state-title">
+  <h2 id="state-title">No incentive points for subnet {{ subnet_uid }}</h2>
+  <p>The provider answered, but the response held no usable points. The subnet may not exist yet, or every point was missing a value or a readable timestamp. Try another subnet above.</p>
+</section>
 {% elif state == "chart" %}
-<p>{{ uid_count }} UID{{ uid_count|pluralize }}, {{ point_count }} point{{ point_count|pluralize }}{% if uid_count > max_plotted %}; the {{ max_plotted }} UIDs with the highest latest value are drawn{% endif %}.</p>
-<div class="panel"><img class="graph" src="data:image/png;base64,{{ graph }}" alt="Line chart of incentive values by provider timestamp for subnet {{ subnet_uid }}"></div>
-<p class="note">Fetched {{ fetched_at|date:"Y-m-d H:i" }} UTC{% if from_cache %} (cached){% endif %}. Missing or invalid points are omitted; this is not a guarantee of complete source data.</p>
+<dl class="stats">
+  <div><dt>UIDs</dt><dd>{{ uid_count }}</dd></div>
+  <div><dt>Points</dt><dd>{{ point_count }}</dd></div>
+  <div><dt>From</dt><dd>{{ first|date:"Y-m-d H:i" }}</dd></div>
+  <div><dt>To</dt><dd>{{ last|date:"Y-m-d H:i" }}</dd></div>
+</dl>
+<p class="note scroll-hint">Scroll the chart sideways to see the full time range.</p>
+<figure class="sheet chart" tabindex="0" aria-describedby="chart-note">
+  <img src="data:image/png;base64,{{ graph }}" width="1320" height="660" alt="Line chart of incentive value over time for subnet {{ subnet_uid }}, one line per plotted UID. The table below lists each plotted UID's latest value.">
+</figure>
+<p class="note" id="chart-note">{% if uid_count > max_plotted %}Showing the {{ max_plotted }} UIDs with the highest latest value out of {{ uid_count }}. {% endif %}Timestamps are as reported; the provider does not state a timezone. Fetched {{ fetched_at|date:"Y-m-d H:i" }} UTC{% if from_cache %}, served from a cache that refreshes every {{ cache_seconds }} s{% endif %}.</p>
+<div class="ranking">
+  <table>
+    <caption>Latest incentive per UID</caption>
+    <thead><tr><th scope="col">Rank</th><th scope="col">UID</th><th scope="col" class="num">Latest value</th><th scope="col" class="num">Samples</th></tr></thead>
+    <tbody>
+    {% for row in plotted %}
+      <tr><td>{{ forloop.counter }}</td><td><span class="swatch" style="background: {{ row.colour }}" aria-hidden="true"></span>UID {{ row.uid }}</td><td class="num">{{ row.latest|floatformat:4 }}</td><td class="num">{{ row.samples }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% endif %}
 {% endblock %}
