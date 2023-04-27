@@ -1,1 +1,28 @@
-{% extends "base.html" %}{% block title %}Subnet {{ subnet_uid }} · Incentive explorer{% endblock %}{% block content %}<a href="{% url 'home' %}">← Overview</a><p class="eyebrow">Provider series</p><h1>Subnet {{ subnet_uid }}</h1><p>Incentive values grouped by UID. Timestamps use the provider's format; timezone is unspecified.</p>{% if synthetic_demo %}<p><strong>Synthetic demonstration data · not a live provider response</strong></p>{% endif %}<div class="panel"><img class="graph" src="data:image/png;base64,{{ graph }}" alt="Line chart of incentive values by provider timestamp for subnet {{ subnet_uid }}"></div><p class="note">Opening this page again requests a fresh chart. Missing or invalid points are omitted; this is not a guarantee of complete source data.</p>{% endblock %}
+{% extends "base.html" %}
+{% block title %}{% if subnet_uid is not None %}Subnet {{ subnet_uid }} · {% endif %}Incentive explorer{% endblock %}
+{% block content %}
+<a href="{% url 'home' %}">← Overview</a>
+<p class="eyebrow">Provider series</p>
+<h1>{% if subnet_uid is not None %}Subnet {{ subnet_uid }}{% else %}Choose a subnet{% endif %}</h1>
+<form method="get" action="{% url 'plot_view' %}" novalidate>
+  <label for="{{ form.subnet.id_for_label }}">{{ form.subnet.label }}</label>
+  {{ form.subnet }}
+  <button class="button" type="submit">Plot</button>
+  {% for error in form.subnet.errors %}<p class="field-error" role="alert">{{ error }}</p>{% endfor %}
+</form>
+{% if state == "error" %}
+<div class="panel" role="alert">
+  <h2>Unable to fetch incentives data</h2>
+  <p>{{ error_message }} Nothing was cached, so <a href="{{ request.get_full_path }}">trying again</a> makes a new request.</p>
+</div>
+{% elif state == "empty" %}
+<div class="panel">
+  <h2>No incentive points for subnet {{ subnet_uid }}</h2>
+  <p>The provider answered, but the response held no usable points. The subnet may not exist, or every point was missing a value or timestamp.</p>
+</div>
+{% elif state == "chart" %}
+<p>{{ uid_count }} UID{{ uid_count|pluralize }}, {{ point_count }} point{{ point_count|pluralize }}{% if uid_count > max_plotted %}; the {{ max_plotted }} UIDs with the highest latest value are drawn{% endif %}.</p>
+<div class="panel"><img class="graph" src="data:image/png;base64,{{ graph }}" alt="Line chart of incentive values by provider timestamp for subnet {{ subnet_uid }}"></div>
+<p class="note">Fetched {{ fetched_at|date:"Y-m-d H:i" }} UTC{% if from_cache %} (cached){% endif %}. Missing or invalid points are omitted; this is not a guarantee of complete source data.</p>
+{% endif %}
+{% endblock %}

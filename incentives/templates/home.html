@@ -1,1 +1,15 @@
-{% extends "base.html" %}{% block content %}<p class="eyebrow">GraphQL → Python → Chart</p><h1>Incentives, over time.</h1><p>A small data-viewing tool that requests subnet incentives from a configured GraphQL provider and renders a server-generated chart.</p><a class="button" href="{% url 'plot_view' %}">Fetch and view chart</a><div class="panel"><h2>Before you open the chart</h2><p>Opening the chart makes a provider request. Values and timestamps reflect the provider response; timezone and completeness are not independently verified. This tool does not calculate returns or make forecasts.</p><p class="note">The chart is generated on demand. There is no local data history, account system, or background refresh.</p></div>{% endblock %}
+{% extends "base.html" %}
+{% block content %}
+<p class="eyebrow">GraphQL → Python → Chart</p>
+<h1>Incentives, over time.</h1>
+<p>A small data-viewing tool that requests subnet incentives from a configured GraphQL provider and renders a server-generated chart.</p>
+<form method="get" action="{% url 'plot_view' %}" novalidate>
+  <label for="{{ form.subnet.id_for_label }}">{{ form.subnet.label }}</label>
+  {{ form.subnet }}
+  <button class="button" type="submit">Fetch and view chart</button>
+</form>
+<div class="panel">
+  <h2>Before you open the chart</h2>
+  <p>Opening the chart makes a provider request unless a recent copy is cached. Values and timestamps reflect the provider response; timezone and completeness are not independently verified. This tool does not calculate returns or make forecasts.</p>
+</div>
+{% endblock %}

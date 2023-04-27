@@ -32,13 +32,32 @@ _allowed_hosts = os.getenv(
 )
 ALLOWED_HOSTS = [host.strip() for host in _allowed_hosts.split(",") if host.strip()]
 
+
+def _env_number(name, default, cast, minimum):
+    raw = os.getenv(name, str(default))
+    try:
+        value = cast(raw)
+    except ValueError:
+        raise ImproperlyConfigured(f"{name} must be a number, got {raw!r}") from None
+    if not value >= minimum:  # also rejects NaN
+        raise ImproperlyConfigured(f"{name} must be at least {minimum}")
+    return value
+
+
 # GraphQL incentives API configuration.
-GRAPHQL_API_URL = os.getenv(
-    "GRAPHQL_API_URL",
-    "https://api.taomarketcap.com/graphql",
-)
-GRAPHQL_SUBNET_UID = int(os.getenv("GRAPHQL_SUBNET_UID", "18"))
-GRAPHQL_REQUEST_TIMEOUT = float(os.getenv("GRAPHQL_REQUEST_TIMEOUT", "10"))
+GRAPHQL_API_URL = os.getenv("GRAPHQL_API_URL", "https://api.taomarketcap.com/graphql")
+GRAPHQL_SUBNET_UID = _env_number("GRAPHQL_SUBNET_UID", 18, int, 0)
+GRAPHQL_REQUEST_TIMEOUT = _env_number("GRAPHQL_REQUEST_TIMEOUT", 10, float, 0.5)
+GRAPHQL_CACHE_SECONDS = _env_number("GRAPHQL_CACHE_SECONDS", 300, int, 0)
+GRAPHQL_MAX_RESPONSE_BYTES = _env_number("GRAPHQL_MAX_RESPONSE_BYTES", 5_000_000, int, 1024)
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "incentive-charts",
+    }
+}
+
 # Application definition
 
 INSTALLED_APPS = [

@@ -1,170 +1,50 @@
-import base64
-import datetime
-import io
-import logging
-import math
-from typing import Any
-
-import matplotlib
-
-matplotlib.use("Agg")
-import requests
 from django.conf import settings
-from django.http import HttpResponse
+from django.core.cache import cache
 from django.shortcuts import render
-from matplotlib.figure import Figure
+from django.utils import timezone
 
-logger = logging.getLogger(__name__)
+from .charts import MAX_PLOTTED_UIDS, render_chart_base64, summarise
+from .forms import SubnetForm
+from .provider import ProviderError, fetch_incentives
 
 
-INCENTIVES_QUERY = """
-query MyQuery {
-  subnets(netUid: %d) {
-    uids {
-      incentive {
-        uid
-        data {
-          value
-          valueBlockNumber
-          timestamp
-          blockNumber
-        }
-      }
+def load_chart(subnet_uid: int) -> tuple[dict, bool]:
+    """Return ``(chart, from_cache)``. Successful fetches, empty ones included, are cached."""
+    key = f"incentives:chart:{subnet_uid}"
+    chart = cache.get(key)
+    if chart is not None:
+        return chart, True
+    points = fetch_incentives(subnet_uid)
+    summary = summarise(points)
+    chart = {
+        "graph": render_chart_base64(points, subnet_uid) if points else None,
+        "ranked": summary["ranked"],
+        "uid_count": summary["uid_count"],
+        "point_count": summary["point_count"],
+        "first": summary["first"],
+        "last": summary["last"],
+        "fetched_at": timezone.now(),
     }
-  }
-}
-"""
-
-
-def _build_incentives_query(subnet_uid: int) -> str:
-    """
-    Build the GraphQL query used to retrieve incentives for a given subnet.
-    """
-    return INCENTIVES_QUERY % subnet_uid
-
-
-def _extract_incentives_from_response(response_data: dict[str, Any]) -> list[dict[str, Any]]:
-    """
-    Parse the incentives GraphQL response into a normalized list of points.
-
-    This is kept separate from network and plotting concerns so that it can
-    be validated in isolation and adapted if the upstream API changes shape.
-    """
-    if not isinstance(response_data, dict) or response_data.get("errors"):
-        return []
-    data_section = response_data.get("data")
-    if not isinstance(data_section, dict):
-        return []
-    subnets = data_section.get("subnets")
-    if not isinstance(subnets, list):
-        return []
-    incentives = []
-    for subnet in subnets:
-        if not isinstance(subnet, dict):
-            continue
-        uids = subnet.get("uids", [])
-        if isinstance(uids, dict):
-            entries = uids.get("incentive", [])
-        elif isinstance(uids, list):
-            entries = []
-            for item in uids:
-                if not isinstance(item, dict):
-                    continue
-                nested = item.get("incentive", item)
-                entries.extend(nested if isinstance(nested, list) else [nested])
-        else:
-            continue
-        if not isinstance(entries, list):
-            continue
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-            uid = entry.get("uid")
-            points = entry.get("data")
-            if not isinstance(uid, int) or isinstance(uid, bool) or not isinstance(points, list):
-                continue
-            for point in points:
-                if not isinstance(point, dict):
-                    continue
-                try:
-                    raw_value = point["value"]
-                    if isinstance(raw_value, bool):
-                        continue
-                    value = float(raw_value)
-                    if not math.isfinite(value) or value < 0:
-                        continue
-                    timestamp = datetime.datetime.strptime(point["timestamp"], "%Y-%m-%d:%H:%M:%S")
-                except (KeyError, TypeError, ValueError):
-                    continue
-                incentives.append({"uid": uid, "value": value, "timestamp": timestamp})
-    return sorted(incentives, key=lambda item: item["timestamp"])
-
-
-def fetch_and_plot_data():
-    """
-    Fetch incentives data from the configured GraphQL API and return a base64-encoded PNG plot.
-
-    Returns None if data cannot be fetched or plotted, allowing the caller to handle errors.
-    """
-    query = _build_incentives_query(settings.GRAPHQL_SUBNET_UID)
-
-    try:
-        response = requests.post(
-            settings.GRAPHQL_API_URL,
-            json={"query": query},
-            timeout=getattr(settings, "GRAPHQL_REQUEST_TIMEOUT", 10),
-            allow_redirects=False,
-        )
-        response.raise_for_status()
-    except requests.RequestException:
-        logger.warning("Unable to fetch incentives data from the configured provider")
-        return None
-
-    try:
-        response_data = response.json()
-    except ValueError:
-        logger.warning("Received non-JSON response from incentives GraphQL API")
-        return None
-
-    incentives = _extract_incentives_from_response(response_data)
-
-    if not incentives:
-        return None
-
-    # Sort incentives by timestamp for a consistent, readable plot.
-    incentives.sort(key=lambda item: item["timestamp"])
-
-    figure = Figure(figsize=(12, 6), layout="constrained")
-    axes = figure.subplots()
-    grouped = {}
-    for item in incentives:
-        grouped.setdefault(item["uid"], []).append(item)
-    for uid, points in grouped.items():
-        axes.plot(
-            [p["timestamp"] for p in points], [p["value"] for p in points], label=f"UID {uid}", alpha=0.8, marker="o"
-        )
-    axes.set(
-        xlabel="Provider timestamp (timezone unspecified)",
-        ylabel="Incentive value",
-        title=f"Subnet {settings.GRAPHQL_SUBNET_UID}",
-    )
-    axes.legend(fontsize="small")
-    axes.grid(True, alpha=0.2)
-    axes.tick_params(axis="x", labelrotation=35)
-    with io.BytesIO() as buffer:
-        figure.savefig(buffer, format="png", dpi=130)
-        return base64.b64encode(buffer.getvalue()).decode("ascii")
+    cache.set(key, chart, settings.GRAPHQL_CACHE_SECONDS)
+    return chart, False
 
 
 def plot_view(request):
-    graph = fetch_and_plot_data()
-    if graph is None:
-        return HttpResponse(
-            "Unable to fetch incentives data at this time.",
-            status=500,
-        )
-    return render(request, "plot.html", {"graph": graph, "subnet_uid": settings.GRAPHQL_SUBNET_UID})
+    form = SubnetForm({"subnet": request.GET.get("subnet", settings.GRAPHQL_SUBNET_UID)})
+    context = {"form": form, "max_plotted": MAX_PLOTTED_UIDS, "cache_seconds": settings.GRAPHQL_CACHE_SECONDS}
+    if not form.is_valid():
+        return render(request, "plot.html", {**context, "state": "invalid"}, status=400)
+
+    subnet_uid = form.cleaned_data["subnet"]
+    context["subnet_uid"] = subnet_uid
+    try:
+        chart, from_cache = load_chart(subnet_uid)
+    except ProviderError as exc:
+        return render(request, "plot.html", {**context, "state": "error", "error_message": str(exc)}, status=502)
+
+    state = "chart" if chart["graph"] else "empty"
+    return render(request, "plot.html", {**context, **chart, "state": state, "from_cache": from_cache})
 
 
 def home_view(request):
-    return render(request, "home.html")
+    return render(request, "home.html", {"form": SubnetForm(initial={"subnet": settings.GRAPHQL_SUBNET_UID})})
