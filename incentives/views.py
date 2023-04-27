@@ -1,18 +1,18 @@
 import base64
 import datetime
 import io
-import math
 import logging
-from typing import Any, Dict, List
+import math
+from typing import Any
 
 import matplotlib
+
 matplotlib.use("Agg")
-from matplotlib.figure import Figure
 import requests
 from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import render
-
+from matplotlib.figure import Figure
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ def _build_incentives_query(subnet_uid: int) -> str:
     return INCENTIVES_QUERY % subnet_uid
 
 
-def _extract_incentives_from_response(response_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def _extract_incentives_from_response(response_data: dict[str, Any]) -> list[dict[str, Any]]:
     """
     Parse the incentives GraphQL response into a normalized list of points.
 
@@ -116,7 +116,7 @@ def fetch_and_plot_data():
             allow_redirects=False,
         )
         response.raise_for_status()
-    except requests.RequestException as exc:
+    except requests.RequestException:
         logger.warning("Unable to fetch incentives data from the configured provider")
         return None
 
@@ -140,8 +140,14 @@ def fetch_and_plot_data():
     for item in incentives:
         grouped.setdefault(item["uid"], []).append(item)
     for uid, points in grouped.items():
-        axes.plot([p["timestamp"] for p in points], [p["value"] for p in points], label=f"UID {uid}", alpha=0.8, marker="o")
-    axes.set(xlabel="Provider timestamp (timezone unspecified)", ylabel="Incentive value", title=f"Subnet {settings.GRAPHQL_SUBNET_UID}")
+        axes.plot(
+            [p["timestamp"] for p in points], [p["value"] for p in points], label=f"UID {uid}", alpha=0.8, marker="o"
+        )
+    axes.set(
+        xlabel="Provider timestamp (timezone unspecified)",
+        ylabel="Incentive value",
+        title=f"Subnet {settings.GRAPHQL_SUBNET_UID}",
+    )
     axes.legend(fontsize="small")
     axes.grid(True, alpha=0.2)
     axes.tick_params(axis="x", labelrotation=35)
@@ -162,4 +168,3 @@ def plot_view(request):
 
 def home_view(request):
     return render(request, "home.html")
-

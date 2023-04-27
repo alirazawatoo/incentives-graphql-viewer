@@ -1,7 +1,8 @@
+from unittest.mock import patch
+
+import requests
 from django.test import Client, TestCase
 from django.urls import reverse
-from unittest.mock import patch
-import requests
 
 
 class ExtractIncentivesFromResponseTests(TestCase):
@@ -170,6 +171,7 @@ class HomeViewTests(TestCase):
 class ResponseBoundaryTests(TestCase):
     def test_nested_incentive_shape_and_finite_values(self):
         from incentives.views import _extract_incentives_from_response
+
         points = [{"value": value, "timestamp": "2024-01-01:12:00:00"} for value in ["NaN", "Infinity", -1, True, 2.5]]
         payload = {"data": {"subnets": [{"uids": [{"incentive": {"uid": 3, "data": points}}]}]}}
         parsed = _extract_incentives_from_response(payload)
@@ -177,12 +179,14 @@ class ResponseBoundaryTests(TestCase):
 
     def test_bad_containers_and_graphql_errors_are_empty(self):
         from incentives.views import _extract_incentives_from_response
+
         for payload in [None, [], {"data": []}, {"data": {"subnets": [None]}}, {"errors": [{"message": "synthetic"}]}]:
             self.assertEqual(_extract_incentives_from_response(payload), [])
 
     @patch("incentives.views.fetch_and_plot_data", return_value="synthetic")
     def test_configured_subnet_is_rendered(self, _fetch):
         from django.test import override_settings
+
         with override_settings(GRAPHQL_SUBNET_UID=42):
             response = self.client.get("/plot/")
         self.assertContains(response, "Subnet 42")

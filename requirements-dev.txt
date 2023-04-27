@@ -1,0 +1,4 @@
+# Test and lint tooling. Production installs use requirements.txt only.
+-r requirements.txt
+responses==0.26.3
+ruff==0.17.4
