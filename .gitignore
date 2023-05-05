@@ -1,0 +1,30 @@
+
+# Django
+*.log
+*.pot
+*.pyc
+__pycache__/
+db.sqlite3
+
+# Environments
+.env
+venv/
+ENV/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+.vercel
+
+staticfiles/
+branch_structure.json
+temp_auto_push.bat
+temp_interactive_push.bat
+.gitignore
